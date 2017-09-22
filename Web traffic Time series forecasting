@@ -1,0 +1,53 @@
+# Kaggle Problem https://www.kaggle.com/c/web-traffic-time-series-forecasting
+
+
+setwd("<>")
+# fast data manipulation
+install.packages("reshape")
+library(data.table)
+
+# read in the data 
+key_1 <- fread("key_1.csv")
+train_1 <- fread("train_1.csv")
+
+# extract a lists  of pages and dates
+train.date.cols = names(train_1[,-1])
+
+# reshape the training data into long format page, date and views
+dt <- melt(train_1,
+           d.vars = c("Page"),
+           measure.vars = train.date.cols,
+           variable.name = "ds",
+           value.name = "y")
+
+# replace NAs with 0 and calculate page median
+dt[is.na(y), y:=0]
+any(is.na(dt))
+
+# Create 
+library('reshape')
+pivot <- cast(dt, ds ~ Page)
+library(forecast)
+ns <- ncol(dummy)
+fcast <- matrix(NA,nrow=h,ncol=ns)
+#-----------------
+library(dplyr)
+library(forecast)
+pagelist <- unique(dt$Page)
+write.csv(pagelist,"pl.csv")
+
+dt_sum <- dt %>% group_by(Page) %>% do(data.frame(Visits = forecast(auto.arima(.$y), h=60)$mean))
+dt_sum$Visits <- round(dt_sum$Visits,0)
+#---------------------------------------------------------------------
+# merge projection dates and key to create submission
+dt_sum <- dt_sum[,2:3]
+key_1[, Page2:= substr(Page, 1, nchar(Page)-11)]
+key_1[, Page:= NULL]
+setnames(key_1, "Page2", "Page")
+setkey(key_1, Page)
+
+# Merge and create zip file for submission
+sub <- merge(key_1, dt_sum, all.x = TRUE)
+finalvisits <- merge(as.data.table(key_1), as.data.table(dt_sum), 
+                     all.x=TRUE, all.y=FALSE, by="Page", allow.cartesian=TRUE)
+write.csv(sub[,c('Id', 'Visits')], file=gzfile("sub_autoarima.csv.gz"), row.names = FALSE)
